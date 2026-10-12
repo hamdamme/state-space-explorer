@@ -1,136 +1,164 @@
-# -*- coding: utf-8 -*-
-"""
-A* Search Algorithm Digit Puzzle Solver
+"""A* search over three-digit states, by Hamdam Aynazarov."""
 
-Author: Hamdam Aynazarov
-GitHub: https://github.com/hamdamme
-
-Description:
-    This program implements an A* search algorithm to solve a digit puzzle.
-    It transforms a starting number into a goal number by incrementing or 
-    decrementing digits while avoiding forbidden states.
-
-Usage:
-    python astar.py S=<start> G=<goal> "bad=[list of bad states]"
-
-Example:
-    python astar.py S=565 G=777 "bad=[665,666,677]"
-"""
-
+import argparse
+from collections import deque
+from dataclasses import dataclass
+import heapq
+from itertools import count
 import sys
+from time import perf_counter
 
-class Astar:
-    def __init__(this, start, goal, predecessor=None, move_cost=0, transformed=None):
-        this.start = start
-        this.predecessor = predecessor
-        this.transformed = transformed if transformed is not None else -1
-        this.move_cost = this.count_move_cost(predecessor, move_cost)
-        this.cost = this.move_cost + get_heuristic(this.start, goal)
-     
-    def count_move_cost(this, predecessor, start_cost):
-        if predecessor is None:
-            return start_cost
+State = tuple[str, int]
+
+
+def normalize_state(value):
+    """Return three digits without losing leading zeros."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        if 0 <= value <= 999:
+            return f"{value:03d}"
+    elif isinstance(value, str) and len(value) == 3 and value.isascii() and value.isdigit():
+        return value
+    raise ValueError("States must contain exactly three digits (000–999).")
+
+
+def parse_blocked_states(text):
+    text = text.strip()
+    if text.startswith("[") and text.endswith("]"):
+        text = text[1:-1].strip()
+    if not text:
+        return set()
+    return {normalize_state(part.strip()) for part in text.split(",")}
+
+
+def get_heuristic(start, goal):
+    start, goal = normalize_state(start), normalize_state(goal)
+    return sum(abs(int(a) - int(b)) for a, b in zip(start, goal))
+
+
+def successors(state, last_digit, blocked):
+    for index, digit in enumerate(state):
+        if index == last_digit:
+            continue
+        for delta in (1, -1):
+            value = int(digit) + delta
+            if 0 <= value <= 9:
+                candidate = state[:index] + str(value) + state[index + 1:]
+                if candidate not in blocked:
+                    yield candidate, index
+
+
+@dataclass(frozen=True)
+class SearchStep:
+    node: State
+    cost: int
+    heuristic: int
+    discovered: tuple[State, ...]
+
+
+@dataclass(frozen=True)
+class SearchResult:
+    path: tuple[str, ...] | None
+    expanded: int
+    generated: int
+    trace: tuple[str, ...]
+    steps: tuple[SearchStep, ...]
+    elapsed_ms: float
+    algorithm: str
+    path_states: tuple[State, ...] | None
+
+
+def solve(start, goal, blocked=(), algorithm="astar"):
+    if algorithm not in {"astar", "dijkstra", "bfs"}:
+        raise ValueError("Unknown search algorithm.")
+    started = perf_counter()
+    start, goal = normalize_state(start), normalize_state(goal)
+    blocked = {normalize_state(value) for value in blocked}
+    if start in blocked or goal in blocked:
+        raise ValueError("Start and goal must not be blocked states.")
+    initial = (start, -1)
+    sequence = count()
+    heuristic = get_heuristic(start, goal) if algorithm == "astar" else 0
+    frontier = [(heuristic, heuristic, next(sequence), 0, initial)]
+    queue = deque([(0, initial)])
+    steps = []
+    best_cost = {initial: 0}
+    parents = {initial: None}
+    trace = []
+    expanded = generated = 0
+    while queue if algorithm == "bfs" else frontier:
+        if algorithm == "bfs":
+            cost, current = queue.popleft()
         else:
-            return predecessor.move_cost + 1
+            _, _, _, cost, current = heapq.heappop(frontier)
+        if cost != best_cost[current]:
+            continue
+        state, last_digit = current
+        expanded += 1
+        trace.append(f"Expanding Node: {state} with cost {cost}; last digit {last_digit}")
+        if state == goal:
+            steps.append(SearchStep(current, cost, get_heuristic(state, goal) if algorithm == "astar" else 0, ()))
+            path = []
+            path_states = []
+            node = current
+            while node is not None:
+                path.append(node[0])
+                path_states.append(node)
+                node = parents[node]
+            return SearchResult(tuple(reversed(path)), expanded, generated, tuple(trace), tuple(steps), (perf_counter() - started) * 1000, algorithm, tuple(reversed(path_states)))
+        discovered = []
+        for candidate, digit in successors(state, last_digit, blocked):
+            generated += 1
+            key = (candidate, digit)
+            new_cost = cost + 1
+            if new_cost < best_cost.get(key, float("inf")):
+                best_cost[key] = new_cost
+                parents[key] = current
+                heuristic = get_heuristic(candidate, goal) if algorithm == "astar" else 0
+                discovered.append(key)
+                if algorithm == "bfs":
+                    queue.append((new_cost, key))
+                else:
+                    heapq.heappush(frontier, (new_cost + heuristic, heuristic, next(sequence), new_cost, key))
+                trace.append(f"  Generated successor: {candidate} from digit {digit}; cost {new_cost}")
+        steps.append(SearchStep(current, cost, get_heuristic(state, goal) if algorithm == "astar" else 0, tuple(discovered)))
+    return SearchResult(None, expanded, generated, tuple(trace), tuple(steps), (perf_counter() - started) * 1000, algorithm, None)
 
-    def generate_successors(this, goal, bad):
-        successors = []
-        start_str = str(this.start)
-        for i, digit in enumerate(start_str):
-            if i == this.transformed:
-                continue
-            current_digit = int(digit)
-            if current_digit < 9:
-                new_start = int(start_str[:i] + str(current_digit + 1) + start_str[i + 1:])
-                if new_start not in bad:
-                    successors.append(Astar(new_start, goal, this, transformed=i))
-            if current_digit > 0:
-                new_start = int(start_str[:i] + str(current_digit - 1) + start_str[i + 1:])
-                if new_start not in bad:
-                    successors.append(Astar(new_start, goal, this, transformed=i))
-        
-        return successors
-
-def get_heuristic(start:str, goal:str)->int:
-    start = str(start).zfill(3)
-    goal = str(goal).zfill(3)
-    differences = []
-    for i in range(3):
-        difference = abs(int(start[i]) - int(goal[i]))
-        differences.append(difference)
-    total_difference = sum(differences)
-    return total_difference
 
 def a_star_search(start, goal, bad):
-    frontier = []
-    start_node = Astar(int(start), int(goal))
-    add_to_frontier(start_node, frontier)
-    explored_set = set()
-    trace = []
-    while frontier:
-        current_node = get_next_node(frontier)
-        
-        print(f"Expanding Node: {current_node.start} with cost {current_node.move_cost}")
+    """Compatibility interface returning the path and expansion trace."""
+    result = solve(start, goal, bad)
+    return list(result.path) if result.path is not None else None, list(result.trace)
 
-        if current_node.start == int(goal):
-            return reconstruct_path(current_node), trace
 
-        explored_set.add(current_node.start)
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Find a shortest route between three-digit states.")
+    parser.add_argument("--start", required=True)
+    parser.add_argument("--goal", required=True)
+    parser.add_argument("--blocked", default="")
+    parser.add_argument("--trace", action="store_true")
+    parser.add_argument("--algorithm", choices=("astar", "dijkstra", "bfs"), default="astar")
+    arguments = sys.argv[1:] if argv is None else argv
+    if arguments == ["help"]:
+        arguments = ["--help"]
+    converted = []
+    legacy = {"S": "--start", "G": "--goal", "bad": "--blocked"}
+    for argument in arguments:
+        key, separator, value = argument.partition("=")
+        converted.extend([legacy[key], value] if separator and key in legacy else [argument])
+    args = parser.parse_args(converted)
+    try:
+        result = solve(args.start, args.goal, parse_blocked_states(args.blocked), args.algorithm)
+    except ValueError as error:
+        parser.error(str(error))
+    if args.trace:
+        print("\n".join(result.trace))
+    if result.path is None:
+        print("No route exists under these constraints.")
+        return 1
+    print("Optimal Path:", " -> ".join(result.path))
+    print(f"Moves: {len(result.path) - 1}; expanded search states: {result.expanded}")
+    return 0
 
-        successors = current_node.generate_successors(int(goal), bad)
-        for successor in successors:
-            print(f"  Generated successor: {successor.start} from digit {successor.transformed}")
-            if successor.start not in explored_set and all(successor.start != existing.start for existing in frontier):
-                add_to_frontier(successor, frontier)
-                
-
-    return None, trace
-
-def add_to_frontier(node, frontier):
-    frontier.append(node)
-    frontier.sort(key=lambda x: x.cost)
-    
-def get_next_node(frontier):
-    return frontier.pop(0)
-
-def reconstruct_path(node):
-    path = []
-    while node:
-        path.append(str(node.start))
-        node = node.predecessor
-    path.reverse()
-    return path
-
-def parse_args():
-    if len(sys.argv) < 2:
-        print("Usage: python astar.py help")
-        return
-
-    if sys.argv[1] == 'help':
-        print("Hint:    python script.py S=<S> G=<G> \"bad=[bad1,bad2,...]\"")
-        print("Example: python script.py S=565 G=777 \"bad=[665,666,677]\"")
-        print("Expected output:  Optimal Path is 565 -> 575 -> 675 -> 676 -> 776 -> 777")
-        return
-
-    S = G = None
-    bad_numbers = set()
-
-    for arg in sys.argv[1:]:
-        if arg.startswith("S="):
-            S = arg.split("=")[1]
-        elif arg.startswith("G="):
-            G = arg.split("=")[1]
-        elif arg.startswith("bad="):
-            bad_numbers = set([int(x) for x in arg[4:].strip('[]').split(',')])
-
-    if S and G:
-        path = a_star_search(S, G, bad_numbers)
-        if path:
-            print("Optimal Path:", ' -> '.join(path))
-        else:
-            print("No path found.")
-    else:
-        print("Invalid arguments. Type 'python astar.py help' for usage information.")
 
 if __name__ == "__main__":
-    parse_args()
+    raise SystemExit(main())

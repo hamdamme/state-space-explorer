@@ -1,124 +1,75 @@
-# A* Search Algorithm – Digit Puzzle Solver
+# StateSpace Explorer
 
-This project implements the A* search algorithm to solve a 3-digit digit puzzle.  
-The solver transforms a starting number into a goal number by incrementing or decrementing digits, while avoiding forbidden states.
+An interactive tool that uses the A* search algorithm to find optimal paths through a state space with transition constraints and blocked states.
 
----
+## Features
 
-## 🧩 Puzzle Rules
+- A*, Dijkstra, and breadth-first search on the same state model.
+- Play, pause, replay, manual stepping, and seeking through recorded search expansions.
+- Interactive discovery graph with frontier, explored states, current state, and final route.
+- Node inspection with route cost, heuristic, total score, and legal successors.
+- Editable inputs and scenarios covering detours, leading zeros, transition constraints, and unreachable goals.
+- Comparison of route lengths, expansions, generated transitions, and elapsed time.
+- JSON results, CSV route, and text trace downloads.
 
-- You start with a **3-digit number** `S`.
-- Your goal is to reach another **3-digit number** `G`.
-- You may specify **forbidden states** (bad numbers) that must be avoided.
+## Model and correctness
 
-### Allowed Moves
-1. **Increase or decrease one digit by 1**  
-   - Example: `678 → 679` (increase)  
-   - Example: `234 → 134` (decrease)
-2. Digits stay between **0 and 9**
-3. **Each move has a cost of 1**
-4. The algorithm finds the **optimal (shortest) path**
+The example uses three-digit states from `000` to `999`. Each move changes one digit by one, avoids blocked states, and stays within digit bounds. The same position cannot change on consecutive moves. Every transition costs one.
 
----
+A search state includes the digits and last changed position. This distinction matters: identical digits reached through different positions have different successors. A* uses a heap and relaxes better routes. Dijkstra uses accumulated cost; breadth-first search uses a FIFO queue.
 
-## 🔍 Heuristic (h)
+A* uses the sum of digit differences as its heuristic. Each legal move changes that sum by at most one, making the heuristic admissible and consistent. Transition constraints can increase the required moves. Optimality is checked against an independent breadth-first implementation.
 
-We use Manhattan distance over each digit:
+This is a bounded state-space demonstration, not a geographic route planner. Graphs show discovery connections rather than every possible transition. The graph displays at most 180 nodes for readability; search, inspection, and exports retain the complete result. The trace preview displays at most 600 lines. Timing includes trace recording and is a single run, not a performance benchmark.
+
+## Setup
+
+Use Python 3.12:
+
+```sh
+git clone https://github.com/hamdamme/state-space-explorer.git
+cd state-space-explorer
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m streamlit run app.py
 ```
 
-h(n) = |G1 − n1| + |G2 − n2| + |G3 − n3|
+On Windows, use `.venv\Scripts\python` instead of `.venv/bin/python`. Open the URL shown by Streamlit.
 
-````
+## Command line
 
-Example: Current `234`, Goal `789` → `|7−2| + |8−3| + |9−4| = 15`
-
-This admissible heuristic ensures A* finds the shortest path.
-
----
-
-## 🚀 Features
-
-- A* Search (cost + heuristic)
-- Forbidden state avoidance
-- Full expansion trace
-- Optimal path reconstruction
-- **Interactive Streamlit UI** with graph visualization
-
----
-
-## 📦 Installation
-
-```bash
-git clone https://github.com/hamdamme/astar_search.git
-cd astar_search
-pip install -r requirements.txt
-````
-
----
-
-## 🖥️ Run via Command Line
-
-```bash
-python astar.py S=565 G=777 "bad=[665,666,677]"
+```sh
+python astar.py --start 565 --goal 777 --blocked 665,666,677
+python astar.py --start 000 --goal 002 --algorithm bfs --trace
 ```
 
-**Example Output:**
+The original `S=565 G=777 "bad=[665,666,677]"` syntax remains supported. Exit codes: 0 for a route, 1 for unreachable, 2 for invalid arguments.
 
-```
-Expanding Node: 565 with cost 0
-  Generated successor: 566
-  ...
-Optimal Path: 565 -> 575 -> 675 -> 676 -> 776 -> 777
-```
+## Testing
 
----
-
-## 🌐 Run Streamlit Web App (Local)
-
-```bash
-streamlit run app.py
+```sh
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
-Open in browser: `http://localhost:8501`
+Tests cover route legality, optimality across 30 reproducible generated scenarios for all three algorithms, invalid input, blocked endpoints, leading zeros, unreachable goals, CLI compatibility, and Streamlit input and playback behavior. GitHub Actions runs the suite on Python 3.12.
 
----
+## Architecture
 
-## 🌍 Deployment to Render.com
+- `astar.py`: validation, transitions, algorithms, immutable result and expansion records, CLI.
+- `app.py`: controls, playback snapshots, graph, comparison, and exports.
+- `tests/`: solver reference checks and Streamlit app tests.
+- `.streamlit/config.toml`: application theme.
 
-**Build Command**
+The interface replays completed searches rather than running an algorithm on every frame. Submitted results retain their original input snapshot until another search is submitted.
 
-```
-pip install -r requirements.txt
-```
+## Deployment and license
 
-**Start Command**
+Existing demo: [a-search.onrender.com](https://a-search.onrender.com/). Render build command: `pip install -r requirements.txt`. Start command:
 
-```
+```sh
 streamlit run app.py --server.port $PORT --server.address 0.0.0.0
 ```
 
-### Optional: `render.yaml`
+Deployment verification and planned work are recorded in [ROADMAP.md](ROADMAP.md).
 
-```yaml
-services:
-  - type: web
-    name: astar-streamlit
-    env: python
-    plan: free
-    autoDeploy: true
-    buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
-```
-
----
-
-## 🗂️ Project Structure
-
-```
-astar_search/
- ├── astar.py          # Core A* algorithm
- ├── app.py            # Streamlit web app
- ├── requirements.txt  # Dependencies
- ├── render.yaml       # (Optional) Render deployment file
- └── README.md         # Project documentation
-```
+MIT license. Copyright 2025 Hamdam Aynazarov. See [LICENSE](LICENSE).
