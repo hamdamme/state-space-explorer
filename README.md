@@ -70,6 +70,6 @@ Existing demo: [a-search.onrender.com](https://a-search.onrender.com/). Render b
 streamlit run app.py --server.port $PORT --server.address 0.0.0.0
 ```
 
-Deployment verification and planned work are recorded in [ROADMAP.md](ROADMAP.md).
+The source is published and the Render release is verified. Render uses the public repository; future releases require a manual deployment from the dashboard. Progress is recorded in [ROADMAP.md](ROADMAP.md).
 
 MIT license. Copyright 2025 Hamdam Aynazarov. See [LICENSE](LICENSE).
