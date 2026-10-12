@@ -64,7 +64,7 @@ The interface replays completed searches rather than running an algorithm on eve
 
 ## Deployment and license
 
-Existing demo: [a-search.onrender.com](https://a-search.onrender.com/). Render build command: `pip install -r requirements.txt`. Start command:
+Live demo: [state-space-explorer.hamdam.me](https://state-space-explorer.hamdam.me/). Render build command: `pip install -r requirements.txt`. Start command:
 
 ```sh
 streamlit run app.py --server.port $PORT --server.address 0.0.0.0
