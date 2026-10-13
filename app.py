@@ -25,6 +25,7 @@ h1,h2,h3 {letter-spacing:-.025em}
 [data-testid="stMetric"] {background:#eeeee6;padding:16px;border:1px solid #d9ddd5;border-radius:4px}
 </style>""", unsafe_allow_html=True)
 st.caption("ALGORITHMS / INTERACTIVE SYSTEMS")
+st.markdown('<a href="https://www.hamdam.me/#projects" target="_self">← Back to portfolio</a>', unsafe_allow_html=True)
 st.title("StateSpace Explorer")
 st.write("Explore how the A* search algorithm finds optimal paths through a state space with transition constraints and blocked states.")
 st.caption("Three digits, one change per move. The same digit position cannot change twice in succession.")
